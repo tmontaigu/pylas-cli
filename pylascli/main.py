@@ -1,5 +1,9 @@
+from pathlib import Path
+
 import click
 import pylas
+
+from progress.bar import IncrementalBar, Progress, Bar
 
 
 @click.group()
@@ -115,9 +119,17 @@ def merge(files, dst):
     """
     Merge the files listed in FILES and writes the result to DST
     """
-    las_files = [pylas.read(file) for file in files]
-    merged = pylas.merge(las_files)
-    merged.write(dst)
+    if len(files) == 1:
+        files = list(map(str, Path(files[0]).glob('*.las')))
+
+    las_files = [pylas.read(f) for f in IncrementalBar("Reading files").iter(files)]
+
+    try:
+        merged = pylas.merge(las_files)
+        merged.write(dst)
+    except Exception as e:
+        click.echo(click.style(str(e), fg='red'))
+        raise click.Abort()
 
 
 if __name__ == '__main__':

@@ -9,6 +9,7 @@ setup(
     author='t.montaigu',
     author_email='',
     description='',
+    install_requires=['pylas', 'click', 'colorama', 'progress'],
     entry_points={
         "console_scripts": [
             "pylas=pylascli.main:cli"

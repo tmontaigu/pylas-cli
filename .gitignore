@@ -1,0 +1,7 @@
+# Python things
+**/*.pyc
+pylas_cli.egg-info/
+
+# IDEs / TextEditors
+.vscode/
+.idea/

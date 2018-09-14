@@ -1,9 +1,16 @@
+import os
 from pathlib import Path
 
 import click
+import fs
 import pylas
+from progress.bar import IncrementalBar
 
-from progress.bar import IncrementalBar, Progress, Bar
+
+def openbin_file(url, mode='r'):
+    basename, filename = os.path.split(url)
+    with fs.open_fs(basename) as ffs:
+        return ffs.openbin(filename, mode=mode)
 
 
 @click.group()
@@ -12,8 +19,8 @@ def cli():
 
 
 @cli.command()
-@click.argument("input", type=click.File(mode="rb"))
-@click.argument("output", type=click.Path())
+@click.argument("input")
+@click.argument("output")
 @click.option(
     "--point-format-id",
     default=None,
@@ -52,8 +59,8 @@ def convert(input, output, point_format_id, file_version, force):
         pylas convert ironforge.las forgeiron.las --point-format-id 3
     """
     if (
-        point_format_id is not None
-        and point_format_id not in pylas.supported_point_formats()
+            point_format_id is not None
+            and point_format_id not in pylas.supported_point_formats()
     ):
         click.echo(
             click.style(
@@ -70,7 +77,7 @@ def convert(input, output, point_format_id, file_version, force):
         )
         raise click.Abort()
 
-    las = pylas.read(input)
+    las = pylas.read(openbin_file(input))
     if point_format_id is not None and not force:
         lost_dimensions = pylas.lost_dimensions(
             las.points_data.point_format.id, point_format_id
@@ -90,7 +97,7 @@ def convert(input, output, point_format_id, file_version, force):
         click.echo(click.style(str(e), fg="red"))
         raise click.Abort()
     else:
-        las.write(output)
+        las.write(openbin_file(output, mode='w'), do_compress=output.endswith('.laz'))
 
 
 def echo_header(header, extended=False):
@@ -98,7 +105,9 @@ def echo_header(header, extended=False):
     click.echo("Point Format id {}".format(header.point_format_id))
     click.echo("Number of Points: {}".format(header.point_count))
     click.echo("Point size: {}".format(header.point_size))
-    click.echo("Number of points by return: {}".format(list(header.number_of_points_by_return)))
+    click.echo(
+        "Number of points by return: {}".format(list(header.number_of_points_by_return))
+    )
     click.echo("Compressed: {}".format(header.are_points_compressed))
     click.echo("Creation date: {}".format(header.date))
     click.echo("Generating Software: {}".format(header.generating_software))
@@ -116,7 +125,6 @@ def echo_header(header, extended=False):
         click.echo("")
         click.echo("Header size: {}".format(header.size))
         click.echo("Offset to points: {}".format(header.offset_to_point_data))
-    
 
 
 def echo_vlrs(fp):
@@ -140,13 +148,12 @@ def echo_points(fp):
     for name in point_records.point_format.dimension_names:
         click.echo(name)
         array = point_records[name]
-        click.echo('\tmin: {}'.format(array.min()))
-        click.echo('\tmax: {}'.format(array.max()))
-
+        click.echo("\tmin: {}".format(array.min()))
+        click.echo("\tmax: {}".format(array.max()))
 
 
 @cli.command()
-@click.argument("file", type=click.File(mode="rb"))
+@click.argument("file")
 @click.option(
     "--extended",
     default=False,
@@ -167,16 +174,19 @@ def info(file, extended, vlrs, points):
     Prints the file information to stdout.
     By default only information of the header are written
     """
-    with pylas.open(file) as fp:
-        echo_header(fp.header, extended)
+    try:
+        with pylas.open(openbin_file(file)) as fp:
+            echo_header(fp.header, extended)
 
-        if vlrs:
-            click.echo(20 * "-")
-            echo_vlrs(fp)
+            if vlrs:
+                click.echo(20 * "-")
+                echo_vlrs(fp)
 
-        if points:
-            click.echo(20 * "-")
-            echo_points(fp)
+            if points:
+                click.echo(20 * "-")
+                echo_points(fp)
+    except fs.errors.ResourceNotFound as e:
+        click.echo(click.style("Error: {}".format(e), fg="red"))
 
 
 @cli.command(short_help="merge files together")
@@ -201,12 +211,12 @@ def merge(files, dst):
     if len(files) == 1:
         files = list(map(str, Path(files[0]).glob("*.la[s-z]")))
 
-    las_files = [pylas.read(f) for f in IncrementalBar("Reading files").iter(files)]
+    las_files = [pylas.read(openbin_file(f)) for f in IncrementalBar("Reading files").iter(files)]
 
     try:
-        click.echo('Merging')
+        click.echo("Merging")
         merged = pylas.merge(las_files)
-        merged.write(dst)
+        merged.write(openbin_file(dst, mode='w'), do_compress=dst.endswith('.laz'))
     except Exception as e:
         click.echo(click.style(str(e), fg="red"))
         raise click.Abort()

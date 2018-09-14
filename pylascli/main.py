@@ -1,10 +1,10 @@
 import os
-from pathlib import Path
 
 import click
 import fs
-import pylas
 from progress.bar import IncrementalBar
+
+import pylas
 
 
 def openbin_file(url, mode='r'):
@@ -208,14 +208,22 @@ def merge(files, dst):
         pylas merge ground.las vegetation.las scene.las
 
     """
+
+    if len(files) == 0:
+        raise click.BadArgumentUsage("Please provide both input files and destination file")
+
     if len(files) == 1:
-        files = list(map(str, Path(files[0]).glob("*.la[s-z]")))
+        path = files[0]
+        base, pattern = os.path.split(path)
+        with fs.open_fs(base) as ffs:
+            files = ["{}{}".format(base, match.path) for match in ffs.glob(pattern)]
 
     las_files = [pylas.read(openbin_file(f)) for f in IncrementalBar("Reading files").iter(files)]
 
     try:
         click.echo("Merging")
         merged = pylas.merge(las_files)
+        click.echo("Writing")
         merged.write(openbin_file(dst, mode='w'), do_compress=dst.endswith('.laz'))
     except Exception as e:
         click.echo(click.style(str(e), fg="red"))

@@ -39,7 +39,17 @@ def convert(input, output, point_format_id, file_version, force):
     Converts INPUT to a file with point_format_id and file_version
     Writes the result to OUTPUT
 
-    If no file version or point_format_id is provided this will result in a copy
+    If no file version or point_format_id is provided this will result in a copy.
+
+    Examples:
+
+    1) Compress a file
+
+        pylas convert stormwind.las stormwind.laz
+
+    2) Convert file to point format 3
+
+        pylas convert ironforge.las forgeiron.las --point-format-id 3
     """
     if (
         point_format_id is not None
@@ -88,6 +98,7 @@ def echo_header(header, extended=False):
     click.echo("Point Format id {}".format(header.point_format_id))
     click.echo("Number of Points: {}".format(header.point_count))
     click.echo("Point size: {}".format(header.point_size))
+    click.echo("Number of points by return: {}".format(list(header.number_of_points_by_return)))
     click.echo("Compressed: {}".format(header.are_points_compressed))
     click.echo("Creation date: {}".format(header.date))
     click.echo("Generating Software: {}".format(header.generating_software))
@@ -102,8 +113,10 @@ def echo_header(header, extended=False):
     click.echo("Maxs: {}".format(header.maxs))
 
     if extended:
+        click.echo("")
         click.echo("Header size: {}".format(header.size))
         click.echo("Offset to points: {}".format(header.offset_to_point_data))
+    
 
 
 def echo_vlrs(fp):
@@ -123,6 +136,13 @@ def echo_points(fp):
         "Available dimensions: {}".format(point_records.point_format.dimension_names)
     )
     click.echo("Extra dimensions: {}".format(point_records.point_format.extra_dims))
+
+    for name in point_records.point_format.dimension_names:
+        click.echo(name)
+        array = point_records[name]
+        click.echo('\tmin: {}'.format(array.min()))
+        click.echo('\tmax: {}'.format(array.max()))
+
 
 
 @cli.command()
@@ -184,6 +204,7 @@ def merge(files, dst):
     las_files = [pylas.read(f) for f in IncrementalBar("Reading files").iter(files)]
 
     try:
+        click.echo('Merging')
         merged = pylas.merge(las_files)
         merged.write(dst)
     except Exception as e:

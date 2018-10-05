@@ -1,6 +1,7 @@
 import os
 
 import click
+import click_spinner
 import fs
 from progress.bar import IncrementalBar
 
@@ -221,10 +222,12 @@ def merge(files, dst):
     las_files = [pylas.read(openbin_file(f)) for f in IncrementalBar("Reading files").iter(files)]
 
     try:
-        click.echo("Merging")
-        merged = pylas.merge(las_files)
-        click.echo("Writing")
-        merged.write(openbin_file(dst, mode='w'), do_compress=dst.endswith('.laz'))
+        with click_spinner.spinner():
+            click.echo("Merging")
+            merged = pylas.merge(las_files)
+            click.echo("Writing")
+            merged.write(openbin_file(dst, mode='w'), do_compress=dst.endswith('.laz'))
+
     except Exception as e:
         click.echo(click.style(str(e), fg="red"))
         raise click.Abort()
